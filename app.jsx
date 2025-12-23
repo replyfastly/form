@@ -4,6 +4,7 @@ function App() {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState({});
   const [showResults, setShowResults] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [respondentInfo, setRespondentInfo] = useState({
     name: '',
     whatsapp: '+55',
@@ -12,6 +13,9 @@ function App() {
 
   // WhatsApp do ReplyFastly para receber respostas
   const REPLYFASTLY_WHATSAPP = '5582999299818';
+  
+  // URL do Google Sheets Webhook - CONFIGURAR DEPOIS
+  const GOOGLE_SHEETS_WEBHOOK = 'https://script.google.com/macros/s/AKfycbxwitYA_Szrhaa-WGsLD0ZxqrHCW8TARoqDa5ylY_IKhSWKipF6UjsawKW_kV07YhK-/execI'; // Trocar pela URL do Apps Script
 
   const countries = [
     { code: 'BR', name: '🇧🇷 Brasil', phone: '+55' },
@@ -210,11 +214,72 @@ function App() {
     return encodeURIComponent(message);
   };
 
-  const handleSubmit = () => {
-    const message = formatWhatsAppMessage();
-    const whatsappUrl = `https://wa.me/${REPLYFASTLY_WHATSAPP}?text=${message}`;
-    window.open(whatsappUrl, '_blank');
-    setShowResults(true);
+  const sendToGoogleSheets = async () => {
+    // Se não tiver webhook configurado, pula
+    if (!GOOGLE_SHEETS_WEBHOOK || GOOGLE_SHEETS_WEBHOOK === 'SUA_URL_AQUI') {
+      console.log('Google Sheets webhook não configurado');
+      return false;
+    }
+
+    try {
+      const score = calculateScore();
+      const quality = getQualityLabel(score);
+      const selectedCountry = countries.find(c => c.code === respondentInfo.country);
+
+      const data = {
+        name: respondentInfo.name,
+        whatsapp: respondentInfo.whatsapp,
+        country: selectedCountry ? selectedCountry.name : respondentInfo.country,
+        score: score,
+        quality: quality,
+        q1_value: answers.q1?.value || '',
+        q1_custom: answers.q1?.custom || '',
+        q2_value: answers.q2?.value || '',
+        q2_custom: answers.q2?.custom || '',
+        q3_value: answers.q3?.value || '',
+        q3_custom: answers.q3?.custom || '',
+        q4_value: answers.q4?.value || '',
+        q5_value: answers.q5?.value || '',
+        q6_value: Array.isArray(answers.q6?.value) ? answers.q6.value.join(', ') : (answers.q6?.value || ''),
+        q6_custom: answers.q6?.custom || '',
+        q7_value: answers.q7?.value || ''
+      };
+
+      const response = await fetch(GOOGLE_SHEETS_WEBHOOK, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+      });
+
+      console.log('Dados enviados para Google Sheets');
+      return true;
+    } catch (error) {
+      console.error('Erro ao enviar para Google Sheets:', error);
+      return false;
+    }
+  };
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    
+    // Enviar para Google Sheets primeiro
+    await sendToGoogleSheets();
+    
+    // Esperar um pouco para dar feedback visual
+    setTimeout(() => {
+      setShowResults(true);
+      setIsSubmitting(false);
+      
+      // Abrir WhatsApp depois que a tela de sucesso aparecer (backup)
+      setTimeout(() => {
+        const message = formatWhatsAppMessage();
+        const whatsappUrl = `https://wa.me/${REPLYFASTLY_WHATSAPP}?text=${message}`;
+        window.open(whatsappUrl, '_blank');
+      }, 300);
+    }, 800);
   };
 
   const canProceed = () => {
@@ -244,24 +309,52 @@ function App() {
     const score = calculateScore();
     const quality = getQualityLabel(score);
     
+    const resendWhatsApp = () => {
+      const message = formatWhatsAppMessage();
+      const whatsappUrl = `https://wa.me/${REPLYFASTLY_WHATSAPP}?text=${message}`;
+      window.open(whatsappUrl, '_blank');
+    };
+    
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
           <div className="text-6xl mb-4">🎉</div>
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            Resposta Enviada!
+            Resposta Recebida!
           </h2>
-          <p className="text-gray-600 mb-6">
-            Obrigado por participar! Sua mensagem foi enviada via WhatsApp.
+          <p className="text-gray-600 mb-2">
+            ✅ Seus dados foram salvos automaticamente!
+          </p>
+          <p className="text-sm text-gray-500 mb-6">
+            Abrimos o WhatsApp também como confirmação adicional.
           </p>
           <div className="bg-purple-50 rounded-lg p-4 mb-6">
             <p className="text-sm text-gray-600 mb-2">Seu score de qualificação:</p>
             <p className="text-3xl font-bold text-purple-600">{score}/4</p>
             <p className="text-sm text-gray-500 mt-2">{quality}</p>
           </div>
-          <p className="text-sm text-gray-500">
-            Entraremos em contato em breve! 🚀
-          </p>
+          
+          <div className="space-y-3">
+            <button
+              onClick={resendWhatsApp}
+              className="w-full px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
+            >
+              📱 Abrir WhatsApp Novamente
+            </button>
+            
+            <p className="text-xs text-gray-500">
+              Caso o WhatsApp não tenha aberto, clique no botão acima
+            </p>
+          </div>
+          
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <p className="text-sm font-medium text-gray-900 mb-2">
+              💰 Não esqueça seu PIX de R$30!
+            </p>
+            <p className="text-xs text-gray-500">
+              Entraremos em contato via WhatsApp para enviar sua compensação.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -442,10 +535,10 @@ function App() {
 
               <button
                 onClick={handleSubmit}
-                disabled={!canSubmit()}
+                disabled={!canSubmit() || isSubmitting}
                 className="w-full px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mt-6"
               >
-                📱 ENVIAR RESPOSTA
+                {isSubmitting ? '⏳ Enviando...' : '📱 ENVIAR RESPOSTA'}
               </button>
 
               <button
