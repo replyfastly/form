@@ -2,25 +2,12 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="ReplyFastly - Questionário de Validação">
     <title>ReplyFastly - Questionário</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        * {
-            -webkit-tap-highlight-color: transparent;
-        }
-        body {
-            margin: 0;
-            padding: 0;
-            overflow-x: hidden;
-        }
-        input, select, button {
-            font-size: 16px !important;
-        }
-    </style>
 </head>
 <body>
     <div id="root"></div>
@@ -75,6 +62,67 @@
                 'IN': '+91',
                 'OTHER': '+'
             };
+
+            // ========== GOOGLE SHEETS INTEGRATION ==========
+            const GOOGLE_SHEETS_WEBHOOK = 'https://script.google.com/macros/s/AKfycbxwitYA_Szrhaa-WGsLD0ZxqrHCW8TARoqDa5ylY_IKhSWKipF6UjsawKW_kV07YhK-/exec';
+
+            const calculateScore = (answersData) => {
+                let score = 0;
+                if (answersData.q3?.option === 'a') score++;
+                if (answersData.q4?.option === 'a') score++;
+                if (['c', 'd', 'e'].includes(answersData.q5?.option)) score++;
+                if (['a', 'b'].includes(answersData.q7?.option)) score++;
+                return score;
+            };
+
+            const getQuality = (score) => {
+                if (score >= 4) return 'HOT_LEAD';
+                if (score === 3) return 'WARM_LEAD';
+                if (score === 2) return 'COLD_LEAD';
+                return 'LOW_INTEREST';
+            };
+
+            const sendToGoogleSheets = async (answersData, contactData) => {
+                try {
+                    const score = calculateScore(answersData);
+                    const quality = getQuality(score);
+                    
+                    const data = {
+                        name: contactData.name,
+                        whatsapp: contactData.whatsapp,
+                        country: contactData.country,
+                        score: score,
+                        quality: quality,
+                        q1_value: answersData.q1?.option || '',
+                        q1_custom: answersData.q1?.custom || '',
+                        q2_value: answersData.q2?.option || '',
+                        q2_custom: answersData.q2?.custom || '',
+                        q3_value: answersData.q3?.option || '',
+                        q3_custom: answersData.q3?.custom || '',
+                        q4_value: answersData.q4?.option || '',
+                        q5_value: answersData.q5?.option || '',
+                        q6_value: answersData.q6?.options ? Object.keys(answersData.q6.options).filter(k => answersData.q6.options[k]).join(', ') : '',
+                        q6_custom: answersData.q6?.customs ? Object.values(answersData.q6.customs).filter(Boolean).join(', ') : '',
+                        q7_value: answersData.q7?.option || ''
+                    };
+
+                    await fetch(GOOGLE_SHEETS_WEBHOOK, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    console.log('✅ Dados enviados ao Google Sheets com sucesso!');
+                    return true;
+                } catch (error) {
+                    console.error('❌ Erro ao enviar ao Google Sheets:', error);
+                    return false;
+                }
+            };
+            // ========== FIM GOOGLE SHEETS ==========
 
             const handleCountryChange = (newCountry) => {
                 setContactInfo({
@@ -149,7 +197,7 @@
                     options: [
                         { id: 'a', text: 'Responder perguntas básicas', value: 'auto_reply' },
                         { id: 'b', text: 'Agendar sem conflitos', value: 'scheduling' },
-                        { id: 'c', text: 'Coletar informações do cliente antes', value: 'client_info' },
+                        { id: 'c', text: 'Coletar informações do cliente antes', value: 'qualify' },
                         { id: 'd', text: 'Nunca vazar minhas informações pessoais', value: 'privacy' },
                         { id: 'e', text: 'Parecer que sou EU respondendo', value: 'personalization' },
                         { id: 'f', text: 'Outro', value: 'other', hasInput: true }
@@ -161,53 +209,56 @@
                     type: 'single',
                     options: [
                         { id: 'a', text: 'Sim, quando estiver pronto me avise', value: 'yes_notify' },
-                        { id: 'b', text: 'Sim, mas só se for fácil de usar', value: 'yes_if_easy' },
-                        { id: 'c', text: 'Não tenho interesse', value: 'no_interest' }
+                        { id: 'b', text: 'Sim, mas só se for fácil de usar', value: 'yes_easy' },
+                        { id: 'c', text: 'Não tenho interesse', value: 'no' }
                     ]
                 }
             ];
 
-            const handleAnswer = (questionId, optionId, customValue) => {
+            const handleAnswer = (questionId, optionId, customValue = '') => {
                 const question = questions.find(q => q.id === questionId);
                 
                 if (question.type === 'single') {
                     setAnswers({
                         ...answers,
-                        [questionId]: { option: optionId, custom: customValue !== undefined ? customValue : answers[questionId]?.custom }
+                        [questionId]: {
+                            option: optionId,
+                            custom: customValue
+                        }
                     });
                 } else {
-                    const current = answers[questionId] || { options: {}, customs: {} };
+                    const currentOptions = answers[questionId]?.options || {};
+                    const currentCustoms = answers[questionId]?.customs || {};
                     
-                    if (customValue === undefined) {
-                        const newOptions = { ...current.options, [optionId]: !current.options[optionId] };
-                        setAnswers({
-                            ...answers,
-                            [questionId]: { options: newOptions, customs: current.customs }
-                        });
-                    } else {
-                        const newCustoms = { ...current.customs, [optionId]: customValue };
-                        setAnswers({
-                            ...answers,
-                            [questionId]: { options: current.options, customs: newCustoms }
-                        });
-                    }
+                    setAnswers({
+                        ...answers,
+                        [questionId]: {
+                            options: {
+                                ...currentOptions,
+                                [optionId]: !currentOptions[optionId]
+                            },
+                            customs: {
+                                ...currentCustoms,
+                                [optionId]: customValue
+                            }
+                        }
+                    });
                 }
             };
 
-            const isAnswered = (questionId) => {
-                const answer = answers[questionId];
-                if (!answer) return false;
+            const canGoNext = () => {
+                const currentQ = questions[currentQuestion];
+                const currentAnswer = answers[currentQ.id];
                 
-                const question = questions.find(q => q.id === questionId);
-                if (question.type === 'single') {
-                    return !!answer.option;
+                if (!currentAnswer) return false;
+                
+                if (currentQ.type === 'single') {
+                    return !!currentAnswer.option;
                 } else {
-                    return Object.values(answer.options || {}).some(v => v);
+                    return currentAnswer.options && Object.values(currentAnswer.options).some(v => v);
                 }
             };
 
-            const canGoNext = () => isAnswered(questions[currentQuestion].id);
-            
             const goNext = () => {
                 if (currentQuestion < questions.length - 1) {
                     setCurrentQuestion(currentQuestion + 1);
@@ -217,194 +268,202 @@
             };
 
             const goBack = () => {
-                if (currentQuestion > 0) {
-                    setCurrentQuestion(currentQuestion - 1);
-                }
+                setCurrentQuestion(currentQuestion - 1);
             };
 
-            const getResultsData = () => {
-                const q3 = answers['q3'];
-                const q4 = answers['q4'];
-                const q5 = answers['q5'];
-                const q7 = answers['q7'];
-
-                const paysForHelp = q3?.option === 'a';
-                const wouldUse = q4?.option === 'a' || q4?.option === 'b';
-                const goodPrice = q5?.option === 'c' || q5?.option === 'd' || q5?.option === 'e';
-                const wantsToTest = q7?.option === 'a' || q7?.option === 'b';
-
-                return { paysForHelp, wouldUse, goodPrice, wantsToTest };
-            };
-
-            const generateStructuredData = () => {
-                const timestamp = new Date().toISOString();
-                const { paysForHelp, wouldUse, goodPrice, wantsToTest } = getResultsData();
-                const score = [paysForHelp, wouldUse, goodPrice, wantsToTest].filter(Boolean).length;
-
-                const structured = {
-                    metadata: {
-                        timestamp,
-                        respondent: {
-                            name: contactInfo.name || 'Não informado',
-                            whatsapp: contactInfo.whatsapp || 'Não informado',
-                            country: contactInfo.country
-                        },
-                        score,
-                        quality: score === 4 ? 'HOT_LEAD' : score === 3 ? 'WARM_LEAD' : score === 2 ? 'COLD_LEAD' : 'LOW_INTEREST'
-                    },
-                    responses: {}
-                };
-
-                questions.forEach(q => {
+            const handleSubmit = async () => {
+                // Enviar para Google Sheets
+                await sendToGoogleSheets(answers, contactInfo);
+                
+                // Abrir WhatsApp com mensagem formatada
+                const score = calculateScore(answers);
+                const quality = getQuality(score);
+                
+                let message = `📋 *RESPOSTA QUESTIONÁRIO REPLYFASTLY*\n\n`;
+                message += `👤 *Dados:*\n`;
+                message += `Nome: ${contactInfo.name}\n`;
+                message += `WhatsApp: ${contactInfo.whatsapp}\n`;
+                message += `País: ${contactInfo.country}\n\n`;
+                message += `📊 *Score: ${score}/4 - ${quality}*\n\n`;
+                message += `---\n\n`;
+                
+                questions.forEach((q, index) => {
                     const answer = answers[q.id];
-                    if (q.type === 'single' && answer?.option) {
-                        const opt = q.options.find(o => o.id === answer.option);
-                        structured.responses[q.id] = {
-                            question: q.question,
-                            answer: opt?.value || 'unknown',
-                            text: opt?.text,
-                            custom: answer.custom || null
-                        };
-                    } else if (q.type === 'multiple' && answer?.options) {
-                        const selected = Object.keys(answer.options).filter(k => answer.options[k]);
-                        structured.responses[q.id] = {
-                            question: q.question,
-                            answers: selected.map(optId => {
-                                const opt = q.options.find(o => o.id === optId);
-                                return {
-                                    value: opt?.value,
-                                    text: opt?.text,
-                                    custom: answer.customs?.[optId] || null
-                                };
-                            })
-                        };
-                    }
-                });
-
-                return structured;
-            };
-
-            const generateWhatsAppMessage = () => {
-                const data = generateStructuredData();
-                let msg = `*REPLYFASTLY - Nova Resposta*\n\n`;
-                msg += `📅 ${new Date(data.metadata.timestamp).toLocaleString('pt-BR')}\n`;
-                msg += `🌍 ${data.metadata.country}\n`;
-                msg += `📱 ${data.metadata.respondent.whatsapp}\n`;
-                msg += `👤 ${data.metadata.respondent.name}\n`;
-                msg += `⭐ Score: ${data.metadata.score}/4 (${data.metadata.quality})\n\n`;
-                msg += `---\n\n`;
-
-                questions.forEach((q, idx) => {
-                    const resp = data.responses[q.id];
-                    if (resp) {
-                        msg += `*${idx + 1}. ${q.question}*\n`;
-                        if (resp.answer) {
-                            msg += `→ ${resp.text}`;
-                            if (resp.custom) msg += ` (${resp.custom})`;
-                            msg += '\n';
-                        } else if (resp.answers) {
-                            resp.answers.forEach(ans => {
-                                msg += `✓ ${ans.text}`;
-                                if (ans.custom) msg += ` (${ans.custom})`;
-                                msg += '\n';
-                            });
+                    if (answer) {
+                        const option = q.options.find(opt => opt.id === answer.option);
+                        message += `*${index + 1}. ${q.question}*\n`;
+                        if (q.type === 'single') {
+                            message += `R: ${option?.text || 'N/A'}\n`;
+                            if (answer.custom) {
+                                message += `Detalhes: ${answer.custom}\n`;
+                            }
+                        } else {
+                            const selectedOptions = Object.keys(answer.options || {})
+                                .filter(key => answer.options[key])
+                                .map(key => q.options.find(opt => opt.id === key)?.text)
+                                .filter(Boolean);
+                            message += `R: ${selectedOptions.join(', ')}\n`;
                         }
-                        msg += '\n';
+                        message += `\n`;
                     }
                 });
-
-                return encodeURIComponent(msg);
+                
+                message += `---\n`;
+                message += `🕒 ${new Date().toISOString()}\n`;
+                
+                const whatsappUrl = `https://wa.me/5582999299818?text=${encodeURIComponent(message)}`;
+                window.open(whatsappUrl, '_blank');
             };
 
-            const sendViaWhatsApp = () => {
-                const msg = generateWhatsAppMessage();
-                const phoneNumber = '5582999299818';
-                window.open(`https://wa.me/${phoneNumber}?text=${msg}`, '_blank');
-            };
+            const wantsToTest = answers.q7?.option === 'a' || answers.q7?.option === 'b';
 
             if (showResults) {
-                const { paysForHelp, wouldUse, goodPrice, wantsToTest } = getResultsData();
-                const score = [paysForHelp, wouldUse, goodPrice, wantsToTest].filter(Boolean).length;
-
                 return (
-                    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 p-4 sm:p-6 flex items-center justify-center">
-                        <div className="max-w-2xl w-full bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-4 sm:p-8 shadow-2xl">
-                            <div className="text-center mb-6 sm:mb-8">
-                                <div className="flex items-center justify-center gap-2 mb-3 sm:mb-4">
-                                    <Zap className="w-10 h-10 sm:w-12 sm:h-12 text-indigo-400" />
-                                    <h1 className="text-3xl sm:text-4xl font-bold text-white">ReplyFastly</h1>
+                    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 p-6 flex items-center justify-center">
+                        <div className="max-w-2xl w-full bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-8 shadow-2xl">
+                            <div className="text-center">
+                                <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full mb-6">
+                                    <CheckCircle2 className="w-12 h-12 text-white" />
                                 </div>
-                                <p className="text-slate-300 text-sm sm:text-base">Obrigado por suas respostas valiosas!</p>
-                            </div>
-
-                            <div className="bg-gradient-to-br from-emerald-500/20 to-blue-500/20 border border-emerald-500/30 rounded-lg p-4 sm:p-6 mb-4 sm:mb-6">
-                                <h3 className="text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4">Pontuação de Interesse</h3>
-                                <div className="flex gap-2 mb-4">
-                                    {[1, 2, 3, 4].map(i => (
-                                        <div
-                                            key={i}
-                                            className={`h-3 flex-1 rounded ${i <= score ? 'bg-emerald-400' : 'bg-slate-600'}`}
-                                        />
-                                    ))}
-                                </div>
-                                <p className="text-slate-200 text-sm">
-                                    {score === 4 && "🔥 Perfil ideal! Você é exatamente nosso público-alvo."}
-                                    {score === 3 && "✅ Muito promissor! Grande potencial de uso."}
-                                    {score === 2 && "💡 Interessante. Há demanda mas precisa refinamento."}
-                                    {score <= 1 && "📊 Obrigado pelo feedback. Vamos analisar."}
+                                
+                                <h2 className="text-3xl font-bold text-white mb-4">
+                                    ✅ Resposta Recebida!
+                                </h2>
+                                
+                                <p className="text-slate-300 mb-2">
+                                    Seus dados foram salvos automaticamente no Google Sheets
                                 </p>
-                            </div>
+                                <p className="text-sm text-slate-400 mb-8">
+                                    Também abrimos o WhatsApp para você confirmar o envio
+                                </p>
 
-                            <div className="bg-slate-700/30 rounded-lg p-4 sm:p-6 mb-4 sm:mb-6">
-                                <h3 className="text-white font-semibold mb-3 sm:mb-4 text-base sm:text-lg">Informações de contato (opcional)</h3>
-                                <div className="space-y-3">
-                                    <input
-                                        type="text"
-                                        placeholder="Seu nome"
-                                        value={contactInfo.name}
-                                        onChange={(e) => setContactInfo({...contactInfo, name: e.target.value})}
-                                        className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500"
-                                    />
-                                    <select
-                                        value={contactInfo.country}
-                                        onChange={(e) => handleCountryChange(e.target.value)}
-                                        className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500"
-                                    >
-                                        <option value="BR">🇧🇷 Brasil</option>
-                                        <option value="PT">🇵🇹 Portugal</option>
-                                        <option value="ES">🇪🇸 Espanha</option>
-                                        <option value="AU">🇦🇺 Austrália</option>
-                                        <option value="IN">🇮🇳 Índia</option>
-                                        <option value="OTHER">🌍 Outro</option>
-                                    </select>
-                                    <input
-                                        type="text"
-                                        placeholder="WhatsApp (com código do país)"
-                                        value={contactInfo.whatsapp}
-                                        onChange={(e) => setContactInfo({...contactInfo, whatsapp: e.target.value})}
-                                        className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500"
-                                    />
+                                <div className="bg-indigo-500/20 border border-indigo-500/30 rounded-lg p-6 mb-8">
+                                    <p className="text-slate-400 text-sm mb-2">Seu score de qualificação:</p>
+                                    <p className="text-4xl font-bold text-indigo-400 mb-2">{calculateScore(answers)}/4</p>
+                                    <p className="text-slate-300 text-sm">{getQuality(calculateScore(answers))}</p>
                                 </div>
-                            </div>
 
-                            <div className="space-y-3">
                                 <button
-                                    onClick={sendViaWhatsApp}
-                                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-4 px-6 rounded-lg font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg"
+                                    onClick={handleSubmit}
+                                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-4 px-6 rounded-lg font-medium transition-all flex items-center justify-center gap-2 mb-4"
                                 >
                                     <Zap className="w-6 h-6" />
-                                    ENVIAR RESPOSTA
+                                    ENVIAR RESPOSTA VIA WHATSAPP
                                 </button>
 
-                                <p className="text-center text-slate-400 text-sm">
-                                    Suas respostas serão enviadas via WhatsApp de forma organizada
+                                <p className="text-center text-slate-400 text-sm mb-8">
+                                    Caso o WhatsApp não tenha aberto, clique no botão acima
                                 </p>
-                            </div>
 
-                            <div className="mt-6 p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-lg text-center">
-                                <p className="text-slate-300 text-sm">
-                                    {wantsToTest ? '🎉 Você será avisada quando o ReplyFastly estiver pronto!' : 'Obrigado pelo seu tempo e feedback!'}
-                                </p>
+                                <div className="p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-lg text-center">
+                                    <p className="text-slate-300 text-sm">
+                                        {wantsToTest ? '🎉 Você será avisada quando o ReplyFastly estiver pronto!' : 'Obrigado pelo seu tempo e feedback!'}
+                                    </p>
+                                    <p className="text-slate-400 text-xs mt-2">
+                                        💰 Não esqueça: você receberá R$30 via PIX pelo feedback!
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // Tela de informações de contato
+            if (currentQuestion === questions.length) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 p-6 flex items-center justify-center">
+                        <div className="max-w-2xl w-full">
+                            <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-8 shadow-2xl">
+                                <div className="mb-6 text-center">
+                                    <div className="flex items-center justify-center gap-2 mb-4">
+                                        <Zap className="w-8 h-8 text-indigo-400" />
+                                        <h2 className="text-2xl font-bold text-white">Últimas informações</h2>
+                                    </div>
+                                    <p className="text-slate-400">Para enviarmos seu PIX de R$30! 💰</p>
+                                </div>
+
+                                <div className="space-y-6">
+                                    <div>
+                                        <label className="block text-slate-300 font-medium mb-2">
+                                            Nome *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={contactInfo.name}
+                                            onChange={(e) => setContactInfo({ ...contactInfo, name: e.target.value })}
+                                            placeholder="Seu nome"
+                                            className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-slate-300 font-medium mb-2">
+                                            País *
+                                        </label>
+                                        <select
+                                            value={contactInfo.country}
+                                            onChange={(e) => handleCountryChange(e.target.value)}
+                                            className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500"
+                                        >
+                                            <option value="BR">🇧🇷 Brasil</option>
+                                            <option value="PT">🇵🇹 Portugal</option>
+                                            <option value="ES">🇪🇸 Espanha</option>
+                                            <option value="AU">🇦🇺 Austrália</option>
+                                            <option value="IN">🇮🇳 Índia</option>
+                                            <option value="OTHER">🌍 Outro</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-slate-300 font-medium mb-2">
+                                            WhatsApp * (opcional mas recomendado)
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            value={contactInfo.whatsapp}
+                                            onChange={(e) => setContactInfo({ ...contactInfo, whatsapp: e.target.value })}
+                                            placeholder="+55 82 99999-9999"
+                                            className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500"
+                                        />
+                                        <p className="text-slate-400 text-sm mt-2">
+                                            Para recebermos seu PIX de R$30 pelo feedback! 💰
+                                        </p>
+                                    </div>
+
+                                    <div className="flex gap-3 pt-4">
+                                        <button
+                                            onClick={() => setCurrentQuestion(questions.length - 1)}
+                                            className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 px-6 rounded-lg font-medium transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <ChevronLeft className="w-5 h-5" />
+                                            Voltar
+                                        </button>
+                                        
+                                        <button
+                                            onClick={goNext}
+                                            disabled={!contactInfo.name.trim()}
+                                            className={`flex-1 py-3 px-6 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${
+                                                contactInfo.name.trim()
+                                                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white'
+                                                    : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                                            }`}
+                                        >
+                                            <Zap className="w-6 h-6" />
+                                            ENVIAR RESPOSTA
+                                        </button>
+                                    </div>
+
+                                    <p className="text-center text-slate-400 text-sm">
+                                        Suas respostas serão enviadas via WhatsApp de forma organizada
+                                    </p>
+                                </div>
+
+                                <div className="mt-6 p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-lg text-center">
+                                    <p className="text-slate-300 text-sm">
+                                        {wantsToTest ? '🎉 Você será avisada quando o ReplyFastly estiver pronto!' : 'Obrigado pelo seu tempo e feedback!'}
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -415,16 +474,16 @@
             const currentAnswer = answers[currentQ.id];
 
             return (
-                <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 p-4 sm:p-6 flex items-center justify-center">
+                <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 p-6 flex items-center justify-center">
                     <div className="max-w-3xl w-full">
-                        <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-4 sm:p-8 shadow-2xl">
-                            <div className="mb-4 sm:mb-6">
-                                <div className="flex justify-between items-center mb-3 sm:mb-4">
+                        <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-8 shadow-2xl">
+                            <div className="mb-6">
+                                <div className="flex justify-between items-center mb-4">
                                     <div className="flex items-center gap-2">
-                                        <Zap className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-400" />
-                                        <h2 className="text-xl sm:text-2xl font-bold text-white">ReplyFastly</h2>
+                                        <Zap className="w-8 h-8 text-indigo-400" />
+                                        <h2 className="text-2xl font-bold text-white">ReplyFastly</h2>
                                     </div>
-                                    <span className="text-slate-400 text-xs sm:text-sm">
+                                    <span className="text-slate-400 text-sm">
                                         {currentQuestion + 1} de {questions.length}
                                     </span>
                                 </div>
@@ -436,8 +495,8 @@
                                 </div>
                             </div>
 
-                            <div className="mb-6 sm:mb-8">
-                                <h3 className="text-xl sm:text-2xl font-semibold text-white mb-4 sm:mb-6">
+                            <div className="mb-8">
+                                <h3 className="text-2xl font-semibold text-white mb-6">
                                     {currentQ.question}
                                 </h3>
 
@@ -451,7 +510,7 @@
                                             <div key={option.id}>
                                                 <button
                                                     onClick={() => handleAnswer(currentQ.id, option.id)}
-                                                    className={`w-full text-left p-3 sm:p-4 rounded-lg transition-all flex items-start gap-2 sm:gap-3 ${
+                                                    className={`w-full text-left p-4 rounded-lg transition-all flex items-start gap-3 ${
                                                         isSelected
                                                             ? 'bg-indigo-500/30 border-2 border-indigo-400'
                                                             : 'bg-slate-700/30 border-2 border-slate-600 hover:border-slate-500'
@@ -459,18 +518,18 @@
                                                 >
                                                     {currentQ.type === 'single' ? (
                                                         isSelected ? (
-                                                            <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-400 flex-shrink-0 mt-0.5" />
+                                                            <CheckCircle2 className="w-6 h-6 text-indigo-400 flex-shrink-0 mt-0.5" />
                                                         ) : (
-                                                            <Circle className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500 flex-shrink-0 mt-0.5" />
+                                                            <Circle className="w-6 h-6 text-slate-500 flex-shrink-0 mt-0.5" />
                                                         )
                                                     ) : (
-                                                        <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                                                        <div className={`w-6 h-6 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
                                                             isSelected ? 'bg-indigo-500 border-indigo-400' : 'border-slate-500'
                                                         }`}>
-                                                            {isSelected && <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4 text-white" />}
+                                                            {isSelected && <CheckCircle2 className="w-4 h-4 text-white" />}
                                                         </div>
                                                     )}
-                                                    <span className={`text-sm sm:text-base ${isSelected ? 'text-white font-medium' : 'text-slate-300'}`}>
+                                                    <span className={`${isSelected ? 'text-white font-medium' : 'text-slate-300'}`}>
                                                         {option.text}
                                                     </span>
                                                 </button>
@@ -485,7 +544,7 @@
                                                             handleAnswer(currentQ.id, option.id, e.target.value);
                                                         }}
                                                         onClick={(e) => e.stopPropagation()}
-                                                        className="mt-2 ml-7 sm:ml-9 w-[calc(100%-1.75rem)] sm:w-[calc(100%-2.25rem)] bg-slate-700 border border-slate-600 rounded-lg px-3 sm:px-4 py-2 text-white text-sm sm:text-base placeholder-slate-400 focus:outline-none focus:border-indigo-500"
+                                                        className="mt-2 ml-9 w-[calc(100%-2.25rem)] bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500"
                                                     />
                                                 )}
                                             </div>
@@ -494,13 +553,13 @@
                                 </div>
                             </div>
 
-                            <div className="flex gap-2 sm:gap-3">
+                            <div className="flex gap-3">
                                 {currentQuestion > 0 && (
                                     <button
                                         onClick={goBack}
-                                        className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg font-medium transition-all flex items-center justify-center gap-1 sm:gap-2 text-sm sm:text-base"
+                                        className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 px-6 rounded-lg font-medium transition-all flex items-center justify-center gap-2"
                                     >
-                                        <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                                        <ChevronLeft className="w-5 h-5" />
                                         Voltar
                                     </button>
                                 )}
@@ -508,14 +567,14 @@
                                 <button
                                     onClick={goNext}
                                     disabled={!canGoNext()}
-                                    className={`flex-1 py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg font-medium transition-all flex items-center justify-center gap-1 sm:gap-2 text-sm sm:text-base ${
+                                    className={`flex-1 py-3 px-6 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${
                                         canGoNext()
                                             ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white'
                                             : 'bg-slate-700 text-slate-500 cursor-not-allowed'
                                     }`}
                                 >
                                     {currentQuestion === questions.length - 1 ? 'Finalizar' : 'Próxima'}
-                                    <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
+                                    <ChevronRight className="w-5 h-5" />
                                 </button>
                             </div>
                         </div>
