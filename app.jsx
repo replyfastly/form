@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { CheckCircle2, Circle, ChevronRight, ChevronLeft, Zap, Download, Copy, Check } from 'lucide-react';
+const { useState } = React;
+const { CheckCircle2, Circle, ChevronRight, ChevronLeft, Zap } = lucide;
 
-export default function ReplyFastlyValidationSurvey() {
+function ReplyFastlyValidationSurvey() {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState({});
   const [showResults, setShowResults] = useState(false);
   const [contactInfo, setContactInfo] = useState({ whatsapp: '+55', name: '', country: 'BR' });
+  const [copied, setCopied] = useState(false);
 
   const countryPrefixes = {
     'BR': '+55',
@@ -23,7 +24,6 @@ export default function ReplyFastlyValidationSurvey() {
       whatsapp: countryPrefixes[newCountry]
     });
   };
-  const [copied, setCopied] = useState(false);
 
   const questions = [
     {
