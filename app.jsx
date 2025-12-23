@@ -105,26 +105,31 @@ function App() {
     }
   ];
 
+  const getOptionLabel = (questionId, value) => {
+    const question = questions.find(q => q.id === questionId);
+    if (!question || !question.options) return value;
+    
+    const option = question.options.find(o => o.value === value);
+    return option ? option.label : value;
+  };
+
   const handleCountryChange = (e) => {
     const country = e.target.value;
     const selectedCountry = countries.find(c => c.code === country);
     setRespondentInfo({
       ...respondentInfo,
       country: country,
-      whatsapp: selectedCountry.phone
+      whatsapp: selectedCountry ? selectedCountry.phone : '+'
     });
   };
 
   const handleAnswer = (questionId, value, customInput = null) => {
-    const question = questions.find(q => q.id === questionId);
-    const option = question?.options?.find(o => o.value === value);
-    
     setAnswers({
       ...answers,
       [questionId]: {
         value: value,
         custom: customInput,
-        text: option?.label || value
+        text: getOptionLabel(questionId, value)
       }
     });
   };
@@ -139,11 +144,7 @@ function App() {
       newAnswers = currentAnswers.filter(v => v !== value);
     }
     
-    const question = questions.find(q => q.id === questionId);
-    const labels = newAnswers.map(v => {
-      const option = question?.options?.find(o => o.value === v);
-      return option?.label || v;
-    });
+    const labels = newAnswers.map(v => getOptionLabel(questionId, v));
     
     setAnswers({
       ...answers,
@@ -158,16 +159,9 @@ function App() {
   const calculateScore = () => {
     let score = 0;
     
-    // Q3: Paga alguém = +1
     if (answers.q3?.value === 'yes') score += 1;
-    
-    // Q4: Com certeza = +1
     if (answers.q4?.value === 'definitely') score += 1;
-    
-    // Q5: Pagaria R$100+ = +1
     if (['100-200', '200-500', '500+'].includes(answers.q5?.value)) score += 1;
-    
-    // Q7: Quer testar = +1
     if (['yes_notify', 'yes_easy'].includes(answers.q7?.value)) score += 1;
     
     return score;
@@ -184,12 +178,13 @@ function App() {
     const score = calculateScore();
     const quality = getQualityLabel(score);
     const timestamp = new Date().toISOString();
+    const selectedCountry = countries.find(c => c.code === respondentInfo.country);
     
     let message = `📋 *RESPOSTA QUESTIONÁRIO REPLYFASTLY*\n\n`;
     message += `👤 *Dados:*\n`;
     message += `Nome: ${respondentInfo.name}\n`;
     message += `WhatsApp: ${respondentInfo.whatsapp}\n`;
-    message += `País: ${countries.find(c => c.code === respondentInfo.country)?.name}\n\n`;
+    message += `País: ${selectedCountry ? selectedCountry.name : respondentInfo.country}\n\n`;
     message += `📊 *Score: ${score}/4 - ${quality}*\n\n`;
     message += `---\n\n`;
     
@@ -198,9 +193,9 @@ function App() {
       if (answer) {
         message += `*${index + 1}. ${q.text}*\n`;
         if (Array.isArray(answer.value)) {
-          message += `R: ${answer.text}\n`;
+          message += `R: ${answer.text || 'Não respondido'}\n`;
         } else {
-          message += `R: ${answer.text}\n`;
+          message += `R: ${answer.text || 'Não respondido'}\n`;
           if (answer.custom) {
             message += `Detalhes: ${answer.custom}\n`;
           }
@@ -224,12 +219,13 @@ function App() {
 
   const canProceed = () => {
     const current = questions[currentQuestion];
-    const answer = answers[current.id];
+    if (!current) return false;
     
+    const answer = answers[current.id];
     if (!answer) return false;
     
     if (current.type === 'multiple') {
-      return answer.value && answer.value.length > 0;
+      return Array.isArray(answer.value) && answer.value.length > 0;
     }
     
     return true;
@@ -272,6 +268,8 @@ function App() {
   }
 
   const currentQ = questions[currentQuestion];
+  if (!currentQ) return null;
+  
   const progress = ((currentQuestion + 1) / questions.length) * 100;
 
   return (
@@ -306,10 +304,10 @@ function App() {
           </h2>
 
           <div className="space-y-3">
-            {currentQ.options.map((option) => {
+            {currentQ.options && currentQ.options.map((option) => {
               const isMultiple = currentQ.type === 'multiple';
               const isSelected = isMultiple
-                ? answers[currentQ.id]?.value?.includes(option.value)
+                ? (answers[currentQ.id]?.value || []).includes(option.value)
                 : answers[currentQ.id]?.value === option.value;
               const showInput = isSelected && option.hasInput;
 
@@ -378,10 +376,7 @@ function App() {
               </button>
             ) : (
               <button
-                onClick={() => {
-                  // Vai para tela de informações pessoais
-                  setCurrentQuestion(questions.length);
-                }}
+                onClick={() => setCurrentQuestion(questions.length)}
                 disabled={!canProceed()}
                 className="px-6 py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
