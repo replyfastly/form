@@ -15,7 +15,7 @@ function App() {
   const REPLYFASTLY_WHATSAPP = '5582999299818';
   
   // URL do Google Sheets Webhook - CONFIGURAR DEPOIS
-  const GOOGLE_SHEETS_WEBHOOK = 'https://script.google.com/macros/s/AKfycbxwitYA_Szrhaa-WGsLD0ZxqrHCW8TARoqDa5ylY_IKhSWKipF6UjsawKW_kV07YhK-/execI'; // Trocar pela URL do Apps Script
+  const GOOGLE_SHEETS_WEBHOOK = 'https://script.google.com/macros/s/AKfycbxwitYA_Szrhaa-WGsLD0ZxqrHCW8TARoqDa5ylY_IKhSWKipF6UjsawKW_kV07YhK-/exec'; // Trocar pela URL do Apps Script
 
   const countries = [
     { code: 'BR', name: '🇧🇷 Brasil', phone: '+55' },
@@ -567,3 +567,4 @@ function App() {
 }
 
 ReactDOM.render(<App />, document.getElementById('root'));
+
