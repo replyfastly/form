@@ -116,12 +116,15 @@ function App() {
   };
 
   const handleAnswer = (questionId, value, customInput = null) => {
+    const question = questions.find(q => q.id === questionId);
+    const option = question?.options?.find(o => o.value === value);
+    
     setAnswers({
       ...answers,
       [questionId]: {
         value: value,
         custom: customInput,
-        text: questions.find(q => q.id === questionId).options.find(o => o.value === value)?.label || value
+        text: option?.label || value
       }
     });
   };
@@ -136,14 +139,18 @@ function App() {
       newAnswers = currentAnswers.filter(v => v !== value);
     }
     
+    const question = questions.find(q => q.id === questionId);
+    const labels = newAnswers.map(v => {
+      const option = question?.options?.find(o => o.value === v);
+      return option?.label || v;
+    });
+    
     setAnswers({
       ...answers,
       [questionId]: {
         value: newAnswers,
         custom: customInput,
-        text: newAnswers.map(v => 
-          questions.find(q => q.id === questionId).options.find(o => o.value === v)?.label || v
-        ).join(', ')
+        text: labels.join(', ')
       }
     });
   };
