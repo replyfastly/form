@@ -110,8 +110,8 @@
                         Q4: answersData.q4?.option || '',
                         Q4_OUTRO: answersData.q4?.custom || '',
                         Q5: answersData.q5?.option || '',
-                        Q6_Preco: answersData.q6?.custom || '',
-                        Q7_Objecao: answersData.q7?.custom || '',
+                        Q6_Paga_Hoje: answersData.q6?.option || '',
+                        Q7_Pagaria: answersData.q7?.option || '',
                         Q8: answersData.q8?.option || ''
                     };
 
@@ -201,15 +201,23 @@
                     question: 'Se você já paga ou já pagou alguém para atender, quanto isso custa por mês (aproximadamente)?',
                     type: 'single',
                     options: [
-                        { id: 'a', text: 'Digite o valor', value: 'custom', hasInput: true, inputLabel: 'R$ por mês' }
+                        { id: 'a', text: 'R$ 200 a R$ 500/mês', value: '200-500' },
+                        { id: 'b', text: 'R$ 500 a R$ 1.000/mês', value: '500-1000' },
+                        { id: 'c', text: 'R$ 1.000 a R$ 2.000/mês', value: '1000-2000' },
+                        { id: 'd', text: 'Mais de R$ 2.000/mês', value: '2000+' },
+                        { id: 'e', text: 'Nunca paguei', value: 'never' }
                     ]
                 },
                 {
                     id: 'q7',
-                    question: 'O que faria você NÃO usar uma secretária virtual assim?',
+                    question: 'Para ter uma Secretária Virtual Inteligente que responda em seu whatsapp 24horas e todos os dias da semana, fazendo seus agendamentos, filtrando os curiosos e outras coisas que só te faz perder tempo, vc estaria disposta a pagar:',
                     type: 'single',
                     options: [
-                        { id: 'a', text: 'Digite sua resposta', value: 'custom', hasInput: true, inputLabel: 'Sua resposta' }
+                        { id: 'a', text: 'R$ 99/mês', value: '99' },
+                        { id: 'b', text: 'R$ 149/mês', value: '149' },
+                        { id: 'c', text: 'R$ 249/mês', value: '249' },
+                        { id: 'd', text: 'R$ 349/mês', value: '349' },
+                        { id: 'e', text: 'Não pagaria', value: 'no' }
                     ]
                 },
                 {
