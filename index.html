@@ -3,80 +3,151 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="ReplyFastly AI - Secretária virtual que trabalha por você">
-    <title>ReplyFastly AI - Secretária Virtual</title>
+    <meta name="description" content="Carla Agent - Secretária virtual inteligente para profissionais">
+    <title>Carla Agent — Questionário</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@3/dist/tailwind.min.css">
 </head>
 <body>
     <div id="root"></div>
-    
+
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script type="text/babel">
         const { useState } = React;
         const { createRoot } = ReactDOM;
 
-        // Ícones Lucide simplificados
         const CheckCircle2 = ({ className }) => (
-            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
         );
-
         const Circle = ({ className }) => (
-            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="10" strokeWidth={2} />
             </svg>
         );
-
         const ChevronRight = ({ className }) => (
-            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
         );
-
         const ChevronLeft = ({ className }) => (
-            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
         );
-
-        const Zap = ({ className }) => (
-            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+        const BotIcon = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 3.75h4.5M12 3.75V6m0 0a7.5 7.5 0 110 15A7.5 7.5 0 0112 6zm-3 7.5h.008v.008H9V13.5zm6 0h.008v.008H15V13.5zM9.75 16.5s.75 1.5 2.25 1.5 2.25-1.5 2.25-1.5" />
             </svg>
         );
 
-        function ReplyFastlyValidationSurvey() {
+        function CarlaAgentSurvey() {
             const [currentQuestion, setCurrentQuestion] = useState(0);
             const [answers, setAnswers] = useState({});
             const [showResults, setShowResults] = useState(false);
-            const [contactInfo, setContactInfo] = useState({ whatsapp: '+55', name: '', country: 'BR' });
+            const [showContactCapture, setShowContactCapture] = useState(false);
+            const [contactCaptured, setContactCaptured] = useState(false);
+            const [isSubmitting, setIsSubmitting] = useState(false);
+            const [submitted, setSubmitted] = useState(false);
+            const [contactInfo, setContactInfo] = useState({ name: '', whatsapp: '+55' });
 
-            const countryPrefixes = {
-                'BR': '+55',
-                'PT': '+351',
-                'ES': '+34',
-                'AU': '+61',
-                'IN': '+91',
-                'OTHER': '+'
-            };
-
-            // ========== GOOGLE SHEETS INTEGRATION ==========
+            const CARLA_WHATSAPP = '5582999299818';
             const GOOGLE_SHEETS_WEBHOOK = 'https://script.google.com/macros/s/AKfycbxwitYA_Szrhaa-WGsLD0ZxqrHCW8TARoqDa5ylY_IKhSWKipF6UjsawKW_kV07YhK-/exec';
+
+            // Captura de contato aparece após esta pergunta (0-based)
+            const CONTACT_AFTER_INDEX = 1;
+
+            const questions = [
+                {
+                    id: 'q1',
+                    question: 'Como você gerencia as conversas com clientes hoje?',
+                    subtitle: 'Queremos entender sua rotina atual.',
+                    type: 'single',
+                    options: [
+                        { id: 'a', text: 'Respondo tudo eu mesma, no meu tempo', value: 'self_manage' },
+                        { id: 'b', text: 'Tenho alguém que me ajuda', value: 'has_help' },
+                        { id: 'c', text: 'Uso alguma ferramenta ou app', value: 'uses_tool' },
+                        { id: 'd', text: 'Outro', value: 'other', hasInput: true }
+                    ]
+                },
+                {
+                    id: 'q2',
+                    question: 'Qual é o maior problema em atender clientes pelo WhatsApp?',
+                    subtitle: 'Escolha o que mais te incomoda no dia a dia.',
+                    type: 'single',
+                    options: [
+                        { id: 'a', text: 'Demoro para responder e perco clientes', value: 'slow_response' },
+                        { id: 'b', text: 'Interrompe meu trabalho e minha vida pessoal', value: 'interruptions' },
+                        { id: 'c', text: 'Difícil agendar sem conflito de horários', value: 'scheduling' },
+                        { id: 'd', text: 'Clientes perguntam sempre as mesmas coisas', value: 'repetitive' },
+                        { id: 'e', text: 'Outro', value: 'other', hasInput: true }
+                    ]
+                },
+                {
+                    id: 'q3',
+                    question: 'Quanto você estima que perde por não responder rápido?',
+                    subtitle: 'Pense em clientes que foram embora por falta de retorno.',
+                    type: 'single',
+                    options: [
+                        { id: 'a', text: 'Pouco — quase não perco clientes assim', value: 'low_loss' },
+                        { id: 'b', text: 'Às vezes — sinto que perco alguns', value: 'medium_loss' },
+                        { id: 'c', text: 'Bastante — resposta rápida faria diferença real', value: 'high_loss' },
+                        { id: 'd', text: 'Muito — é um problema sério no meu negócio', value: 'critical_loss' }
+                    ]
+                },
+                {
+                    id: 'q4',
+                    question: 'Você já tentou resolver isso de alguma forma?',
+                    subtitle: 'Sem julgamento — é só para entender o que já foi testado.',
+                    type: 'single',
+                    options: [
+                        { id: 'a', text: 'Não, ainda não tentei nada', value: 'never_tried' },
+                        { id: 'b', text: 'Tentei mas não funcionou bem', value: 'tried_failed', hasInput: true, inputLabel: 'O que tentou?' },
+                        { id: 'c', text: 'Uso algo hoje, mas não é ideal', value: 'using_imperfect', hasInput: true, inputLabel: 'O que usa hoje?' },
+                        { id: 'd', text: 'Pago alguém para me ajudar', value: 'pays_help', hasInput: true, inputLabel: 'Quanto por mês? (R$)', inputType: 'number' }
+                    ]
+                },
+                {
+                    id: 'q5',
+                    question: 'O que seria indispensável numa assistente virtual para o seu negócio?',
+                    subtitle: 'Selecione tudo que for importante para você.',
+                    type: 'multiple',
+                    options: [
+                        { id: 'a', text: 'Responder perguntas básicas automaticamente', value: 'auto_reply' },
+                        { id: 'b', text: 'Agendar horários sem conflito', value: 'scheduling' },
+                        { id: 'c', text: 'Parecer que sou EU respondendo, no meu estilo', value: 'personalization' },
+                        { id: 'd', text: 'Coletar informações do cliente antes do atendimento', value: 'client_info' },
+                        { id: 'e', text: 'Nunca expor meus dados pessoais', value: 'privacy' },
+                        { id: 'f', text: 'Funcionar 24h, mesmo quando estou dormindo', value: 'always_on' },
+                        { id: 'g', text: 'Outro', value: 'other', hasInput: true }
+                    ]
+                },
+                {
+                    id: 'q6',
+                    question: 'Você toparia testar gratuitamente por 7 dias e me dar um feedback honesto?',
+                    subtitle: 'Sem contrato, sem cartão de crédito. Só para ver se faz sentido pra você.',
+                    type: 'single',
+                    options: [
+                        { id: 'a', text: 'Sim! Me avise quando estiver pronto', value: 'yes_notify' },
+                        { id: 'b', text: 'Sim, mas precisa ser simples de usar', value: 'yes_easy' },
+                        { id: 'c', text: 'Talvez — depende de como funciona', value: 'maybe' },
+                        { id: 'd', text: 'Não tenho interesse agora', value: 'no_interest' }
+                    ]
+                }
+            ];
 
             const calculateScore = (answersData) => {
                 let score = 0;
-                // Q1: Ajudaria muito?
-                if (answersData.q1?.option === 'a') score++;
-                // Q2: Volume alto de mensagens?
-                if (['c', 'd'].includes(answersData.q2?.option)) score++;
-                // Q3: Baixa conversão (problema)?
-                if (['a', 'b'].includes(answersData.q3?.option)) score++;
-                // Q5: Já paga/pagou alguém (prova que há orçamento)?
-                if (['b', 'c'].includes(answersData.q5?.option)) score++;
-                return score;
+                const q3 = answersData.q3?.option;
+                const q4 = answersData.q4?.option;
+                const q6 = answersData.q6?.option;
+                if (q3 === 'c' || q3 === 'd') score++;
+                if (q4 === 'b' || q4 === 'c') score++;
+                if (q4 === 'd') score += 2;
+                if (q6 === 'a' || q6 === 'b') score++;
+                return Math.min(score, 4);
             };
 
             const getQuality = (score) => {
@@ -86,196 +157,129 @@
                 return 'LOW_INTEREST';
             };
 
-            const getInterestLevel = (score) => {
-                if (score === 4) return 'Grande';
-                if (score === 3) return 'Médio';
-                if (score === 2) return 'Pequeno';
-                return 'Nenhum';
-            };
-
-            const sendToGoogleSheets = async (answersData, contactData) => {
+            const sendToGoogleSheets = async (answersData, contact) => {
                 try {
                     const score = calculateScore(answersData);
-                    const quality = getQuality(score);
-                    
+                    const q5selected = answersData.q5?.options
+                        ? Object.keys(answersData.q5.options).filter(k => answersData.q5.options[k]).join(', ')
+                        : '';
                     const data = {
-                        Nome: contactData.name,
-                        WhatsApp: contactData.whatsapp,
-                        Pais: contactData.country,
+                        Nome: contact.name,
+                        WhatsApp: contact.whatsapp,
                         Score: score,
-                        Quality: quality,
+                        Quality: getQuality(score),
                         Q1: answersData.q1?.option || '',
+                        Q1_custom: answersData.q1?.custom || '',
                         Q2: answersData.q2?.option || '',
+                        Q2_custom: answersData.q2?.custom || '',
                         Q3: answersData.q3?.option || '',
                         Q4: answersData.q4?.option || '',
-                        Q4_OUTRO: answersData.q4?.custom || '',
-                        Q5: answersData.q5?.option || '',
-                        Q6_Paga_Hoje: answersData.q6?.option || '',
-                        Q7_Pagaria: answersData.q7?.option || '',
-                        Q8: answersData.q8?.option || ''
+                        Q4_custom: answersData.q4?.custom || '',
+                        Q5: q5selected,
+                        Q6: answersData.q6?.option || ''
                     };
-
                     await fetch(GOOGLE_SHEETS_WEBHOOK, {
                         method: 'POST',
                         mode: 'no-cors',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(data)
                     });
-
-                    console.log('✅ Dados enviados ao Google Sheets com sucesso!');
                     return true;
-                } catch (error) {
-                    console.error('❌ Erro ao enviar ao Google Sheets:', error);
+                } catch (e) {
+                    console.error('Erro Google Sheets:', e);
                     return false;
                 }
             };
-            // ========== FIM GOOGLE SHEETS ==========
 
-            const handleCountryChange = (newCountry) => {
-                setContactInfo({
-                    ...contactInfo,
-                    country: newCountry,
-                    whatsapp: countryPrefixes[newCountry]
+            const formatWhatsAppMessage = () => {
+                const score = calculateScore(answers);
+                const quality = getQuality(score);
+                let msg = `🤖 *CARLA AGENT — Nova Resposta*\n\n`;
+                msg += `👤 *${contactInfo.name}*\n`;
+                msg += `📱 ${contactInfo.whatsapp}\n`;
+                msg += `⭐ Score: ${score}/4 — ${quality}\n`;
+                msg += `📅 ${new Date().toLocaleString('pt-BR')}\n\n`;
+                msg += `---\n\n`;
+                questions.forEach((q, idx) => {
+                    const ans = answers[q.id];
+                    if (!ans) return;
+                    msg += `*${idx + 1}. ${q.question}*\n`;
+                    if (q.type === 'single') {
+                        const opt = q.options.find(o => o.id === ans.option);
+                        msg += `→ ${opt?.text || 'N/A'}\n`;
+                        if (ans.custom) msg += `  Detalhe: ${ans.custom}\n`;
+                    } else {
+                        const selected = Object.keys(ans.options || {}).filter(k => ans.options[k]);
+                        selected.forEach(k => {
+                            const opt = q.options.find(o => o.id === k);
+                            msg += `✓ ${opt?.text || k}\n`;
+                        });
+                    }
+                    msg += '\n';
                 });
+                return encodeURIComponent(msg);
             };
 
-            const questions = [
-                {
-                    id: 'q1',
-                    question: 'Se existisse uma "secretária virtual" que filtrasse curiosos e organizasse seus clientes, isso te ajudaria hoje?',
-                    type: 'single',
-                    options: [
-                        { id: 'a', text: 'Muito', value: 'very_much' },
-                        { id: 'b', text: 'Um pouco', value: 'a_little' },
-                        { id: 'c', text: 'Não ajudaria', value: 'not_help' }
-                    ]
-                },
-                {
-                    id: 'q2',
-                    question: 'Em média, quantas mensagens você recebe por dia no WhatsApp?',
-                    type: 'single',
-                    options: [
-                        { id: 'a', text: 'Menos de 10', value: 'less_10' },
-                        { id: 'b', text: '10 a 30', value: '10_30' },
-                        { id: 'c', text: '30 a 70', value: '30_70' },
-                        { id: 'd', text: 'Mais de 70', value: 'more_70' }
-                    ]
-                },
-                {
-                    id: 'q3',
-                    question: 'Dessas mensagens, quantas realmente viram atendimento pago?',
-                    type: 'single',
-                    options: [
-                        { id: 'a', text: 'Quase nenhuma', value: 'almost_none' },
-                        { id: 'b', text: 'Poucas', value: 'few' },
-                        { id: 'c', text: 'Cerca da metade', value: 'half' },
-                        { id: 'd', text: 'A maioria', value: 'most' }
-                    ]
-                },
-                {
-                    id: 'q4',
-                    question: 'O que mais te atrapalha hoje no atendimento pelo WhatsApp?',
-                    type: 'single',
-                    options: [
-                        { id: 'a', text: 'Curiosos que não fecham', value: 'curious' },
-                        { id: 'b', text: 'Mensagens fora de horário', value: 'off_hours' },
-                        { id: 'c', text: 'Perguntas repetidas', value: 'repeated' },
-                        { id: 'd', text: 'Falta de tempo para responder', value: 'no_time' },
-                        { id: 'e', text: 'Outro', value: 'other', hasInput: true }
-                    ]
-                },
-                {
-                    id: 'q5',
-                    question: 'Hoje você faz o atendimento sozinha ou paga alguém para ajudar?',
-                    type: 'single',
-                    options: [
-                        { id: 'a', text: 'Faço tudo sozinha', value: 'alone' },
-                        { id: 'b', text: 'Já pago alguém para atender', value: 'paying_now' },
-                        { id: 'c', text: 'Já paguei alguém no passado', value: 'paid_before' }
-                    ]
-                },
-                {
-                    id: 'q6',
-                    question: 'Se você já paga ou já pagou alguém para atender, quanto isso custa por mês (aproximadamente)?',
-                    type: 'single',
-                    options: [
-                        { id: 'a', text: 'R$ 200 a R$ 500/mês', value: '200-500' },
-                        { id: 'b', text: 'R$ 500 a R$ 1.000/mês', value: '500-1000' },
-                        { id: 'c', text: 'R$ 1.000 a R$ 2.000/mês', value: '1000-2000' },
-                        { id: 'd', text: 'Mais de R$ 2.000/mês', value: '2000+' },
-                        { id: 'e', text: 'Nunca paguei', value: 'never' }
-                    ]
-                },
-                {
-                    id: 'q7',
-                    question: 'Para ter uma Secretária Virtual Inteligente que responda em seu whatsapp 24horas e todos os dias da semana, fazendo seus agendamentos, filtrando os curiosos e outras coisas que só te faz perder tempo, vc estaria disposta a pagar:',
-                    type: 'single',
-                    options: [
-                        { id: 'a', text: 'R$ 99/mês', value: '99' },
-                        { id: 'b', text: 'R$ 149/mês', value: '149' },
-                        { id: 'c', text: 'R$ 249/mês', value: '249' },
-                        { id: 'd', text: 'R$ 349/mês', value: '349' },
-                        { id: 'e', text: 'Não pagaria', value: 'no' }
-                    ]
-                },
-                {
-                    id: 'q8',
-                    question: 'Posso te avisar quando essa solução estiver pronta para teste?',
-                    type: 'single',
-                    options: [
-                        { id: 'a', text: 'Sim', value: 'yes' },
-                        { id: 'b', text: 'Não', value: 'no' }
-                    ]
-                }
-            ];
+            const handleSubmit = async () => {
+                setIsSubmitting(true);
+                await sendToGoogleSheets(answers, contactInfo);
+                setTimeout(() => {
+                    setSubmitted(true);
+                    setIsSubmitting(false);
+                    setTimeout(() => {
+                        window.open(`https://wa.me/${CARLA_WHATSAPP}?text=${formatWhatsAppMessage()}`, '_blank');
+                    }, 300);
+                }, 800);
+            };
 
-            const handleAnswer = (questionId, optionId, customValue = '') => {
+            const handleAnswer = (questionId, optionId, customValue) => {
                 const question = questions.find(q => q.id === questionId);
-                
                 if (question.type === 'single') {
                     setAnswers({
                         ...answers,
                         [questionId]: {
                             option: optionId,
-                            custom: customValue
+                            custom: customValue !== undefined ? customValue : answers[questionId]?.custom
                         }
                     });
                 } else {
-                    const currentOptions = answers[questionId]?.options || {};
-                    const currentCustoms = answers[questionId]?.customs || {};
-                    
-                    setAnswers({
-                        ...answers,
-                        [questionId]: {
-                            options: {
-                                ...currentOptions,
-                                [optionId]: !currentOptions[optionId]
-                            },
-                            customs: {
-                                ...currentCustoms,
-                                [optionId]: customValue
+                    const current = answers[questionId] || { options: {}, customs: {} };
+                    if (customValue === undefined) {
+                        setAnswers({
+                            ...answers,
+                            [questionId]: {
+                                options: { ...current.options, [optionId]: !current.options[optionId] },
+                                customs: current.customs
                             }
-                        }
-                    });
+                        });
+                    } else {
+                        setAnswers({
+                            ...answers,
+                            [questionId]: {
+                                options: current.options,
+                                customs: { ...current.customs, [optionId]: customValue }
+                            }
+                        });
+                    }
                 }
             };
 
-            const canGoNext = () => {
-                const currentQ = questions[currentQuestion];
-                const currentAnswer = answers[currentQ.id];
-                
-                if (!currentAnswer) return false;
-                
-                if (currentQ.type === 'single') {
-                    return !!currentAnswer.option;
-                } else {
-                    return currentAnswer.options && Object.values(currentAnswer.options).some(v => v);
-                }
+            const isAnswered = (qId) => {
+                const ans = answers[qId];
+                if (!ans) return false;
+                const q = questions.find(q => q.id === qId);
+                if (q.type === 'single') return !!ans.option;
+                return Object.values(ans.options || {}).some(v => v);
             };
+
+            const canGoNext = () => isAnswered(questions[currentQuestion].id);
+            const canSubmitContact = () => contactInfo.name.trim().length > 2 && contactInfo.whatsapp.length > 8;
 
             const goNext = () => {
+                if (currentQuestion === CONTACT_AFTER_INDEX && !contactCaptured) {
+                    setShowContactCapture(true);
+                    return;
+                }
                 if (currentQuestion < questions.length - 1) {
                     setCurrentQuestion(currentQuestion + 1);
                 } else {
@@ -283,154 +287,185 @@
                 }
             };
 
-            const goBack = () => {
-                setCurrentQuestion(currentQuestion - 1);
+            const handleContactSubmit = () => {
+                setContactCaptured(true);
+                setShowContactCapture(false);
+                setCurrentQuestion(currentQuestion + 1);
             };
 
-            const handleSubmit = async () => {
-                // Enviar para Google Sheets
-                await sendToGoogleSheets(answers, contactInfo);
-                
-                // Abrir WhatsApp com mensagem formatada
-                const score = calculateScore(answers);
-                const quality = getQuality(score);
-                
-                let message = `📋 *RESPOSTA QUESTIONÁRIO REPLYFASTLY*\n\n`;
-                message += `👤 *Dados:*\n`;
-                message += `Nome: ${contactInfo.name}\n`;
-                message += `WhatsApp: ${contactInfo.whatsapp}\n`;
-                message += `País: ${contactInfo.country}\n\n`;
-                message += `📊 *Score: ${score}/4 - ${quality}*\n\n`;
-                message += `---\n\n`;
-                
-                questions.forEach((q, index) => {
-                    const answer = answers[q.id];
-                    if (answer) {
-                        const option = q.options.find(opt => opt.id === answer.option);
-                        message += `*${index + 1}. ${q.question}*\n`;
-                        if (q.type === 'single') {
-                            message += `R: ${option?.text || 'N/A'}\n`;
-                            if (answer.custom) {
-                                message += `Detalhes: ${answer.custom}\n`;
-                            }
-                        } else {
-                            const selectedOptions = Object.keys(answer.options || {})
-                                .filter(key => answer.options[key])
-                                .map(key => q.options.find(opt => opt.id === key)?.text)
-                                .filter(Boolean);
-                            message += `R: ${selectedOptions.join(', ')}\n`;
-                        }
-                        message += `\n`;
-                    }
-                });
-                
-                message += `---\n`;
-                message += `\n📱 *Envie essa mensagem e depois digite sua chave PIX na conversa*\n`;
-                
-                const whatsappUrl = `https://wa.me/5582999299818?text=${encodeURIComponent(message)}`;
-                window.open(whatsappUrl, '_blank');
-            };
+            // Header reutilizável
+            const Header = ({ current, total }) => (
+                <div className="mb-6">
+                    <div className="flex justify-between items-center mb-4">
+                        <div className="flex items-center gap-2">
+                            <BotIcon className="w-8 h-8 text-indigo-400" />
+                            <div>
+                                <h2 className="text-2xl font-bold text-white">Carla Agent</h2>
+                                <p className="text-xs text-slate-400">Secretária virtual inteligente</p>
+                            </div>
+                        </div>
+                        {current !== undefined && (
+                            <span className="text-slate-400 text-sm">{current} de {total}</span>
+                        )}
+                    </div>
+                    {current !== undefined && (
+                        <div className="w-full bg-slate-700 rounded-full h-2">
+                            <div
+                                className="bg-gradient-to-r from-indigo-500 to-purple-500 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${(current / total) * 100}%` }}
+                            />
+                        </div>
+                    )}
+                </div>
+            );
 
-            const wantsToTest = answers.q8?.option === 'a';
+            // Tela de captura de contato intermediária
+            if (showContactCapture) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 p-6 flex items-center justify-center">
+                        <div className="max-w-3xl w-full bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-8 shadow-2xl">
+                            <Header current={currentQuestion + 1} total={questions.length} />
 
+                            <div className="mb-8">
+                                <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-4 mb-6">
+                                    <p className="text-indigo-300 text-sm leading-relaxed">
+                                        <span className="text-white font-semibold">Suas respostas fazem muito sentido!</span> Antes de continuar, deixa eu guardar seu contato para te avisar quando o teste estiver disponível.
+                                    </p>
+                                </div>
+
+                                <h3 className="text-2xl font-semibold text-white mb-6">Como posso te chamar?</h3>
+
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-slate-400 text-sm mb-1">Seu nome *</label>
+                                        <input
+                                            type="text"
+                                            placeholder="Ex: Mariana"
+                                            value={contactInfo.name}
+                                            onChange={(e) => setContactInfo({ ...contactInfo, name: e.target.value })}
+                                            className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-slate-400 text-sm mb-1">WhatsApp (com DDD) *</label>
+                                        <input
+                                            type="tel"
+                                            placeholder="+55 82 99999-9999"
+                                            value={contactInfo.whatsapp}
+                                            onChange={(e) => setContactInfo({ ...contactInfo, whatsapp: e.target.value })}
+                                            className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500"
+                                        />
+                                        <p className="text-slate-500 text-xs mt-1">Não enviamos spam. Só entraremos em contato sobre o teste da Carla.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowContactCapture(false)}
+                                    className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 px-6 rounded-lg font-medium transition-all flex items-center justify-center gap-2"
+                                >
+                                    <ChevronLeft className="w-5 h-5" />
+                                    Voltar
+                                </button>
+                                <button
+                                    onClick={handleContactSubmit}
+                                    disabled={!canSubmitContact()}
+                                    className={`flex-1 py-3 px-6 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${
+                                        canSubmitContact()
+                                            ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white'
+                                            : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                                    }`}
+                                >
+                                    Continuar
+                                    <ChevronRight className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // Tela de resultados
             if (showResults) {
                 const score = calculateScore(answers);
+                const quality = getQuality(score);
+                const wantsToTest = answers.q6?.option === 'a' || answers.q6?.option === 'b';
 
-                const getScoreMessage = (score) => {
-                    if (score === 4) return "🔥 Perfil ideal! Você é exatamente nosso público-alvo.";
-                    if (score === 3) return "✅ Muito promissor! Grande potencial de uso.";
-                    if (score === 2) return "💡 Interessante. Há demanda mas precisa se convencer.";
-                    return "📊 Obrigado pelo feedback.";
+                const scoreMessages = {
+                    4: '🔥 Você é exatamente o perfil que a Carla Agent foi criada para ajudar. Vamos conversar!',
+                    3: '✅ Você tem dores reais que a Carla consegue resolver. Temos muito a conversar.',
+                    2: '💡 Há potencial aqui. Quero te mostrar como a Carla pode encaixar no seu dia a dia.',
+                    1: '📊 Obrigada pelo feedback honesto. Ele vai nos ajudar a melhorar.',
+                    0: '📊 Obrigada pelo feedback honesto. Ele vai nos ajudar a melhorar.'
                 };
+
+                if (submitted) {
+                    return (
+                        <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 p-6 flex items-center justify-center">
+                            <div className="max-w-2xl w-full bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-8 shadow-2xl text-center">
+                                <div className="text-6xl mb-4">🎉</div>
+                                <h2 className="text-2xl font-bold text-white mb-3">Recebido, {contactInfo.name}!</h2>
+                                <p className="text-slate-300 mb-6">
+                                    {wantsToTest
+                                        ? 'Entro em contato em até 24h para agendar seu teste gratuito de 7 dias.'
+                                        : 'Obrigada pelo seu tempo e feedback honesto!'}
+                                </p>
+                                <button
+                                    onClick={() => window.open(`https://wa.me/${CARLA_WHATSAPP}?text=${formatWhatsAppMessage()}`, '_blank')}
+                                    className="w-full py-3 px-6 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-all"
+                                >
+                                    📱 Abrir WhatsApp novamente
+                                </button>
+                                <p className="text-slate-500 text-xs mt-3">Caso o WhatsApp não tenha aberto automaticamente</p>
+                            </div>
+                        </div>
+                    );
+                }
 
                 return (
                     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 p-6 flex items-center justify-center">
                         <div className="max-w-2xl w-full bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-8 shadow-2xl">
                             <div className="text-center mb-8">
-                                <div className="flex flex-col items-center justify-center gap-2 mb-4">
-                                    <div className="flex items-center gap-2">
-                                        <Zap className="w-12 h-12 text-indigo-400" />
-                                        <h1 className="text-4xl font-bold text-white">ReplyFastly AI</h1>
-                                    </div>
-                                    <p className="text-slate-400 text-sm">Secretária virtual que trabalha por você</p>
+                                <div className="flex items-center justify-center gap-2 mb-2">
+                                    <BotIcon className="w-10 h-10 text-indigo-400" />
+                                    <h1 className="text-3xl font-bold text-white">Carla Agent</h1>
                                 </div>
-                                <p className="text-slate-300">Obrigado por suas respostas valiosas!</p>
+                                <p className="text-slate-400 text-sm">Secretária virtual inteligente</p>
                             </div>
 
                             <div className="bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 rounded-lg p-6 mb-6">
-                                <h3 className="text-xl font-bold text-white mb-4">Pontuação de Interesse</h3>
-                                <div className="flex gap-2 mb-4">
+                                <h3 className="text-lg font-semibold text-white mb-3">Seu perfil</h3>
+                                <div className="flex gap-2 mb-3">
                                     {[1, 2, 3, 4].map(i => (
-                                        <div
-                                            key={i}
-                                            className={`h-3 flex-1 rounded ${i <= score ? 'bg-indigo-400' : 'bg-slate-600'}`}
-                                        />
+                                        <div key={i} className={`h-2.5 flex-1 rounded-full ${i <= score ? 'bg-indigo-400' : 'bg-slate-600'}`} />
                                     ))}
                                 </div>
-                                <p className="text-slate-200 text-sm">
-                                    {getScoreMessage(score)}
-                                </p>
+                                <p className="text-slate-200 text-sm leading-relaxed">{scoreMessages[score]}</p>
                             </div>
 
-                            <div className="bg-slate-700/30 rounded-lg p-6 mb-6">
-                                <h3 className="text-white font-semibold mb-4">Informações de contato</h3>
-                                <div className="space-y-3">
-                                    <input
-                                        type="text"
-                                        placeholder="Seu nome"
-                                        value={contactInfo.name}
-                                        onChange={(e) => setContactInfo({...contactInfo, name: e.target.value})}
-                                        className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500"
-                                    />
-                                    <select
-                                        value={contactInfo.country}
-                                        onChange={(e) => handleCountryChange(e.target.value)}
-                                        className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500"
-                                    >
-                                        <option value="BR">🇧🇷 Brasil</option>
-                                        <option value="PT">🇵🇹 Portugal</option>
-                                        <option value="ES">🇪🇸 Espanha</option>
-                                        <option value="AU">🇦🇺 Austrália</option>
-                                        <option value="IN">🇮🇳 Índia</option>
-                                        <option value="OTHER">🌍 Outro</option>
-                                    </select>
-                                    <input
-                                        type="tel"
-                                        placeholder="WhatsApp (com código do país)"
-                                        value={contactInfo.whatsapp}
-                                        onChange={(e) => setContactInfo({...contactInfo, whatsapp: e.target.value})}
-                                        className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500"
-                                    />
+                            {wantsToTest && (
+                                <div className="bg-slate-700/30 border border-slate-600/50 rounded-lg p-4 mb-6">
+                                    <p className="text-slate-300 text-sm leading-relaxed">
+                                        <span className="text-white font-medium">Próximo passo:</span> Clique em "Enviar respostas" e eu entro em contato para agendar o seu teste gratuito de 7 dias. Sem compromisso, sem cartão.
+                                    </p>
                                 </div>
-                            </div>
+                            )}
 
                             <div className="space-y-3">
                                 <button
                                     onClick={handleSubmit}
-                                    disabled={!contactInfo.name.trim()}
+                                    disabled={isSubmitting}
                                     className={`w-full py-4 px-6 rounded-lg font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg ${
-                                        contactInfo.name.trim()
-                                            ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white'
-                                            : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                                        isSubmitting
+                                            ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                                            : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white'
                                     }`}
                                 >
-                                    <Zap className="w-6 h-6" />
-                                    ENVIAR RESPOSTA
+                                    {isSubmitting ? '⏳ Enviando...' : '📱 Enviar minhas respostas'}
                                 </button>
-
                                 <p className="text-center text-slate-400 text-sm">
-                                    Suas respostas serão enviadas via WhatsApp de forma organizada
-                                </p>
-                            </div>
-
-                            <div className="mt-6 p-4 bg-slate-700/20 border border-slate-600/50 rounded-lg text-center">
-                                <p className="text-slate-300 text-sm mb-1">
-                                    {wantsToTest 
-                                        ? '🎉 Você será avisada quando o ReplyFastly estiver pronto!' 
-                                        : 'Obrigado pelo seu tempo e feedback!'}
-                                </p>
-                                <p className="text-slate-400 text-xs">
-                                    💰 Não esqueça de enviar sua chave PIX para receber os R$30
+                                    Suas respostas são enviadas de forma organizada e entro em contato em até 24h.
                                 </p>
                             </div>
                         </div>
@@ -438,6 +473,7 @@
                 );
             }
 
+            // Tela principal de perguntas
             const currentQ = questions[currentQuestion];
             const currentAnswer = answers[currentQ.id];
 
@@ -445,31 +481,16 @@
                 <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 p-6 flex items-center justify-center">
                     <div className="max-w-3xl w-full">
                         <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-8 shadow-2xl">
-                            <div className="mb-6">
-                                <div className="flex justify-between items-center mb-4">
-                                    <div className="flex items-center gap-2">
-                                        <Zap className="w-8 h-8 text-indigo-400" />
-                                        <div>
-                                            <h2 className="text-2xl font-bold text-white">ReplyFastly AI</h2>
-                                            <p className="text-sm text-slate-400">Secretária virtual que trabalha por você</p>
-                                        </div>
-                                    </div>
-                                    <span className="text-slate-400 text-sm">
-                                        {currentQuestion + 1} de {questions.length}
-                                    </span>
-                                </div>
-                                <div className="w-full bg-slate-700 rounded-full h-2">
-                                    <div
-                                        className="bg-gradient-to-r from-indigo-500 to-purple-500 h-2 rounded-full transition-all duration-300"
-                                        style={{ width: `${((currentQuestion + 1) / questions.length) * 100}%` }}
-                                    />
-                                </div>
-                            </div>
+                            <Header current={currentQuestion + 1} total={questions.length} />
 
                             <div className="mb-8">
-                                <h3 className="text-2xl font-semibold text-white mb-6">
-                                    {currentQ.question}
-                                </h3>
+                                <h3 className="text-2xl font-semibold text-white mb-2">{currentQ.question}</h3>
+                                {currentQ.subtitle && (
+                                    <p className="text-slate-400 text-sm mb-5">{currentQ.subtitle}</p>
+                                )}
+                                {currentQ.type === 'multiple' && (
+                                    <p className="text-indigo-300 text-xs mb-4">Selecione quantas quiser</p>
+                                )}
 
                                 <div className="space-y-3">
                                     {currentQ.options.map((option) => {
@@ -488,11 +509,9 @@
                                                     }`}
                                                 >
                                                     {currentQ.type === 'single' ? (
-                                                        isSelected ? (
-                                                            <CheckCircle2 className="w-6 h-6 text-indigo-400 flex-shrink-0 mt-0.5" />
-                                                        ) : (
-                                                            <Circle className="w-6 h-6 text-slate-500 flex-shrink-0 mt-0.5" />
-                                                        )
+                                                        isSelected
+                                                            ? <CheckCircle2 className="w-6 h-6 text-indigo-400 flex-shrink-0 mt-0.5" />
+                                                            : <Circle className="w-6 h-6 text-slate-500 flex-shrink-0 mt-0.5" />
                                                     ) : (
                                                         <div className={`w-6 h-6 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
                                                             isSelected ? 'bg-indigo-500 border-indigo-400' : 'border-slate-500'
@@ -500,15 +519,15 @@
                                                             {isSelected && <CheckCircle2 className="w-4 h-4 text-white" />}
                                                         </div>
                                                     )}
-                                                    <span className={`${isSelected ? 'text-white font-medium' : 'text-slate-300'}`}>
+                                                    <span className={isSelected ? 'text-white font-medium' : 'text-slate-300'}>
                                                         {option.text}
                                                     </span>
                                                 </button>
 
                                                 {option.hasInput && isSelected && (
                                                     <input
-                                                        type="text"
-                                                        placeholder={option.inputLabel || "Especifique..."}
+                                                        type={option.inputType || 'text'}
+                                                        placeholder={option.inputLabel || 'Especifique...'}
                                                         value={currentQ.type === 'single' ? (currentAnswer?.custom || '') : (currentAnswer?.customs?.[option.id] || '')}
                                                         onChange={(e) => {
                                                             e.stopPropagation();
@@ -527,14 +546,13 @@
                             <div className="flex gap-3">
                                 {currentQuestion > 0 && (
                                     <button
-                                        onClick={goBack}
+                                        onClick={() => setCurrentQuestion(currentQuestion - 1)}
                                         className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 px-6 rounded-lg font-medium transition-all flex items-center justify-center gap-2"
                                     >
                                         <ChevronLeft className="w-5 h-5" />
                                         Voltar
                                     </button>
                                 )}
-                                
                                 <button
                                     onClick={goNext}
                                     disabled={!canGoNext()}
@@ -544,10 +562,17 @@
                                             : 'bg-slate-700 text-slate-500 cursor-not-allowed'
                                     }`}
                                 >
-                                    {currentQuestion === questions.length - 1 ? 'Finalizar' : 'Próxima'}
+                                    {currentQuestion === questions.length - 1 ? 'Ver resultado' : 'Próxima'}
                                     <ChevronRight className="w-5 h-5" />
                                 </button>
                             </div>
+                        </div>
+
+                        <div className="text-center mt-6 text-sm text-slate-500">
+                            <p>🔒 Seus dados estão seguros conosco</p>
+                            <p className="mt-1">
+                                Dúvidas? <a href="https://wa.me/5582999299818" className="text-indigo-400 hover:underline">+55 82 99929-9818</a>
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -555,7 +580,7 @@
         }
 
         const root = createRoot(document.getElementById('root'));
-        root.render(<ReplyFastlyValidationSurvey />);
+        root.render(<CarlaAgentSurvey />);
     </script>
 </body>
 </html>
